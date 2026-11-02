@@ -1,0 +1,1 @@
+"""Matronix resource pack creator."""

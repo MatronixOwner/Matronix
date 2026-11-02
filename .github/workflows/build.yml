@@ -1,0 +1,38 @@
+name: Test and build Windows
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'matronix/**'
+      - 'tests/**'
+      - 'run.pyw'
+      - 'requirements.txt'
+      - '.github/workflows/build.yml'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt pyinstaller
+      - run: python -c "from PySide6.QtWidgets import QApplication; from matronix.app import Window"
+      - run: python -m unittest discover -s tests -v
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: python -m PyInstaller --noconfirm --windowed --onefile --add-data "matronix/versions.json;matronix" --name Matronix run.pyw
+      - name: Check EXE starts
+        shell: pwsh
+        run: |
+          $app = Start-Process -FilePath "dist/Matronix.exe" -PassThru
+          Start-Sleep -Seconds 15
+          if ($app.HasExited) { throw "Matronix exited during startup: $($app.ExitCode)" }
+          Stop-Process -Id $app.Id -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Matronix-Windows
+          path: dist/Matronix.exe
