@@ -66,3 +66,21 @@ class GuiTests(unittest.TestCase):
         finally:
             w.dirty = False
             w.close()
+
+    def test_online_dialog_selection(self):
+        from unittest.mock import patch
+        from matronix.online_dialog import TextureDialog
+        with tempfile.TemporaryDirectory() as tmp, patch.object(TextureDialog, 'load_index'):
+            dialog = TextureDialog('26.2', tmp)
+            dialog.show_entries({'block/stone': {}, 'item/apple': {}})
+            dialog.search.setText('stone')
+            dialog.check_visible(True)
+            self.assertEqual(dialog.checked(), ['block/stone'])
+            self.assertTrue(dialog.download.isEnabled())
+            dialog.search.setText('apple')
+            dialog.check_visible(True)
+            self.assertEqual(set(dialog.checked()), {'block/stone','item/apple'})
+            dialog.check_visible(False)
+            self.assertEqual(dialog.checked(), [])
+            self.assertFalse(dialog.download.isEnabled())
+            dialog.reject()

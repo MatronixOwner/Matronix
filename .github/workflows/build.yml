@@ -34,7 +34,7 @@ jobs:
           $app = Start-Process -FilePath "dist/Matronix.exe" -PassThru
           Start-Sleep -Seconds 15
           if ($app.HasExited) { throw "Matronix exited during startup: $($app.ExitCode)" }
-          Stop-Process -Id $app.Id -Force
+          & taskkill /PID $app.Id /T /F
       - name: Build installer
         shell: pwsh
         run: |
@@ -45,15 +45,15 @@ jobs:
         run: |
           $target = Join-Path $env:RUNNER_TEMP "Matronix-install-test"
           $setup = Start-Process "dist/MatronixSetup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$target`"" -PassThru -Wait
-          if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
-          if (!(Test-Path "$target/Matronix.exe")) { throw "Installed EXE is missing" }
+          if ($setup.ExitCode -ne 0) { Write-Output "::error::Installer failed: $($setup.ExitCode)"; throw "Installer failed" }
+          if (!(Test-Path "$target/Matronix.exe")) { Write-Output "::error::Installed EXE is missing"; throw "Installed EXE is missing" }
           $app = Start-Process "$target/Matronix.exe" -PassThru
           Start-Sleep -Seconds 15
-          if ($app.HasExited) { throw "Installed EXE exited during startup" }
-          Stop-Process -Id $app.Id -Force
+          if ($app.HasExited) { Write-Output "::error::Installed EXE exited during startup with $($app.ExitCode)"; throw "Installed EXE exited during startup" }
+          & taskkill /PID $app.Id /T /F
           $uninstall = Start-Process "$target/unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait -PassThru
-          if ($uninstall.ExitCode -ne 0) { throw "Uninstall failed" }
-          if (Test-Path "$target/Matronix.exe") { throw "Uninstall did not remove EXE" }
+          if ($uninstall.ExitCode -ne 0) { Write-Output "::error::Uninstall failed: $($uninstall.ExitCode)"; throw "Uninstall failed" }
+          if (Test-Path "$target/Matronix.exe") { Write-Output "::error::Uninstall did not remove EXE"; throw "Uninstall did not remove EXE" }
       - uses: actions/upload-artifact@v4
         with:
           name: Matronix-Installer
