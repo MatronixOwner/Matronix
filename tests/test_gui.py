@@ -23,9 +23,12 @@ class GuiTests(unittest.TestCase):
     def test_edit_save_and_export(self):
         w = Window()
         try:
+            from matronix.theme import STYLE
+            self.app.setStyleSheet(STYLE)
             w.show()
             self.app.processEvents()
             self.assertFalse(w.dirty)
+            self.assertGreaterEqual(w.online_button.width(), 100)
             QTest.mouseClick(w.canvas, Qt.LeftButton, pos=QPoint(w.canvas.width()//2, w.canvas.height()//2))
             self.assertTrue(w.dirty)
             self.assertIn('block/stone', w.project.textures)

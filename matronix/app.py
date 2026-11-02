@@ -154,51 +154,76 @@ class Window(QMainWindow):
         self.worker = None
         self.cache = Path(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)) / 'clients'
 
-        self.resize(1180, 780)
+        self.resize(1280, 860)
+        self.setMinimumSize(1080, 740)
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(24, 20, 24, 16)
-        top = QHBoxLayout()
-        title = QLabel('MATRONIX  /  Ресурс-паки без сложностей')
+        layout.setSpacing(16)
+        layout.setContentsMargins(22, 20, 22, 10)
+
+        header = QHBoxLayout()
+        branding = QVBoxLayout()
+        title = QLabel('MATRONIX')
         title.setObjectName('brand')
-        top.addWidget(title)
-        top.addStretch()
-        self.button(top, 'Новый', self.new)
-        self.button(top, 'Открыть', self.open)
-        self.button(top, 'Сохранить', self.save)
-        export = self.button(top, 'Собрать ZIP →', self.export)
-        export.setObjectName('primary')
-        layout.addLayout(top)
-        metadata = QHBoxLayout()
-        self.name = QLineEdit(self.project.name)
-        self.name.setPlaceholderText('Название пака')
-        self.description = QLineEdit(self.project.description)
-        self.description.setPlaceholderText('Описание в Minecraft')
-        metadata.addWidget(self.name)
-        metadata.addWidget(self.description, 2)
+        branding.addWidget(title)
+        subtitle = QLabel('Ресурс-паки без сложностей')
+        subtitle.setObjectName('muted')
+        branding.addWidget(subtitle)
+        header.addLayout(branding)
+        header.addStretch()
+        for label, callback in [('Новый', self.new), ('Открыть', self.open), ('Сохранить', self.save)]:
+            self.button(header, label, callback).setObjectName('quiet')
+        self.button(header, 'Собрать ресурс-пак →', self.export).setObjectName('primary')
+        layout.addLayout(header)
+
+        project_panel = QWidget()
+        project_panel.setObjectName('panel')
+        project_layout = QHBoxLayout(project_panel)
+        project_layout.setContentsMargins(16, 12, 16, 12)
+        for caption, attr, value in [('НАЗВАНИЕ ПАКА', 'name', self.project.name), ('ОПИСАНИЕ В ИГРЕ', 'description', self.project.description)]:
+            field = QVBoxLayout()
+            label = QLabel(caption)
+            label.setObjectName('section')
+            field.addWidget(label)
+            edit = QLineEdit(value)
+            setattr(self, attr, edit)
+            edit.textChanged.connect(self.metadata_changed)
+            field.addWidget(edit)
+            project_layout.addLayout(field, 2 if attr == 'description' else 1)
+        version_layout = QVBoxLayout()
+        label = QLabel('MINECRAFT JAVA')
+        label.setObjectName('section')
+        version_layout.addWidget(label)
         self.version = QComboBox()
         self.version.addItems(list(VERSIONS))
         self.version.setCurrentText(VERSION)
-        self.version.setToolTip('Minecraft Java. Смена версии создаёт новый проект.')
+        self.version.setToolTip('Смена версии создаёт новый проект. Сохраните текущий перед переключением.')
         self.version.currentTextChanged.connect(self.change_version)
-        metadata.addWidget(self.version)
-        layout.addLayout(metadata)
-        sources = QHBoxLayout()
-        self.download_button = self.button(sources, '↓ Загрузить оригиналы Mojang', self.download_originals)
-        self.local_button = self.button(sources, 'Открыть Minecraft JAR…', self.open_jar)
-        self.source_label = QLabel('Оригиналы не подключены — чистый холст')
-        sources.addWidget(self.source_label, 1)
-        layout.addLayout(sources)
-        self.name.textChanged.connect(self.metadata_changed)
-        self.description.textChanged.connect(self.metadata_changed)
+        version_layout.addWidget(self.version)
+        project_layout.addLayout(version_layout)
+        layout.addWidget(project_panel)
+
         splitter = QSplitter()
+        splitter.setChildrenCollapsible(False)
         layout.addWidget(splitter, 1)
         left = QWidget()
+        left.setObjectName('panel')
+        left.setMinimumWidth(250)
         ll = QVBoxLayout(left)
-        ll.addWidget(QLabel('КАТАЛОГ ТЕКСТУР'))
+        ll.setContentsMargins(14, 16, 14, 12)
+        ll.setSpacing(10)
+        label = QLabel('БИБЛИОТЕКА ТЕКСТУР')
+        label.setObjectName('section')
+        ll.addWidget(label)
+        self.online_button = self.button(ll, '+ Выбрать текстуры онлайн', self.choose_online)
+        self.online_button.setObjectName('primary')
+        self.source_label = QLabel('Чистый холст • подключите оригиналы')
+        self.source_label.setWordWrap(True)
+        self.source_label.setObjectName('muted')
+        ll.addWidget(self.source_label)
         self.search = QLineEdit()
-        self.search.setPlaceholderText('Найти блок или предмет…')
+        self.search.setPlaceholderText('Поиск по названию или ID…')
         self.search.textChanged.connect(self.filter)
         ll.addWidget(self.search)
         self.category = QComboBox()
@@ -206,25 +231,39 @@ class Window(QMainWindow):
         self.category.currentTextChanged.connect(self.filter)
         ll.addWidget(self.category)
         self.list = QListWidget()
+        self.list.setIconSize(QSize(28,28))
         for key, label, category in self.catalog:
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, key)
             item.setToolTip(key)
             self.list.addItem(item)
         self.list.currentItemChanged.connect(self.select)
-        ll.addWidget(self.list)
-        hint = QLabel('● — текстура добавлена в пак\nОстальные останутся стандартными.')
-        hint.setWordWrap(True)
+        ll.addWidget(self.list, 1)
+        hint = QLabel('● Изменено — попадёт в ваш пак')
+        hint.setObjectName('muted')
         ll.addWidget(hint)
+        self.local_button = self.button(ll, 'Открыть локальный JAR…', self.open_jar)
+        self.local_button.setObjectName('quiet')
+        self.download_button = self.button(ll, 'Скачать весь клиент Mojang', self.download_originals)
+        self.download_button.setObjectName('quiet')
         splitter.addWidget(left)
+
         center = QWidget()
+        center.setObjectName('panel')
         cl = QVBoxLayout(center)
+        cl.setContentsMargins(18, 16, 18, 14)
+        cl.setSpacing(12)
         self.texture_title = QLabel('Выберите текстуру')
         self.texture_title.setObjectName('heading')
         cl.addWidget(self.texture_title)
+        self.texture_id = QLabel('')
+        self.texture_id.setObjectName('muted')
+        self.texture_id.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        cl.addWidget(self.texture_id)
         tools = QHBoxLayout()
         group = QButtonGroup(self)
         self.canvas = Canvas()
+        self.canvas.setMinimumSize(300,300)
         for label in ['Карандаш', 'Ластик', 'Заливка', 'Пипетка']:
             button = self.button(tools, label, lambda checked=False, t=label: setattr(self.canvas, 'tool', t))
             button.setCheckable(True)
@@ -234,40 +273,58 @@ class Window(QMainWindow):
         cl.addLayout(tools)
         cl.addWidget(self.canvas, 1)
         bottom = QHBoxLayout()
-        self.button(bottom, '↶ Отмена', self.canvas.undo)
-        self.button(bottom, '↷ Повтор', self.canvas.redo)
+        self.button(bottom, '↶', self.canvas.undo).setToolTip('Отменить • Ctrl+Z')
+        self.button(bottom, '↷', self.canvas.redo).setToolTip('Повторить • Ctrl+Shift+Z')
         grid = QCheckBox('Сетка')
         grid.setChecked(True)
         grid.toggled.connect(lambda value: (setattr(self.canvas, 'grid', value), self.canvas.update()))
         bottom.addWidget(grid)
-        self.button(bottom, 'Размер', self.resize_texture)
+        bottom.addStretch()
+        self.button(bottom, 'Размер…', self.resize_texture)
         cl.addLayout(bottom)
         splitter.addWidget(center)
+
         right = QWidget()
+        right.setObjectName('panel')
+        right.setMinimumWidth(230)
         rl = QVBoxLayout(right)
-        rl.addWidget(QLabel('ЦВЕТ И ПРЕДПРОСМОТР'))
+        rl.setContentsMargins(16, 16, 16, 16)
+        rl.setSpacing(12)
+        label = QLabel('ЦВЕТ')
+        label.setObjectName('section')
+        rl.addWidget(label)
         self.swatch = self.button(rl, 'Выбрать цвет', self.choose_color)
+        self.color_value = QLabel('#8974FF  •  α 255')
+        self.color_value.setObjectName('muted')
+        rl.addWidget(self.color_value)
         palette = QHBoxLayout()
         for value in ['#8974ff', '#f2bf67', '#72d9a1', '#ffffff', '#181b24']:
             b = self.button(palette, '', lambda checked=False, c=value: self.set_color(QColor(c).getRgb()))
             b.setFixedSize(28, 28)
-            b.setStyleSheet(f'background: {value}; border: 1px solid #606478;')
+            b.setStyleSheet(f'background: {value}; border: 1px solid #606478; border-radius: 7px; padding: 0;')
+        palette.addStretch()
         rl.addLayout(palette)
+        label = QLabel('ПРЕДПРОСМОТР')
+        label.setObjectName('section')
+        rl.addWidget(label)
         self.preview = QLabel()
         self.preview.setFixedSize(192, 192)
         self.preview.setAlignment(Qt.AlignCenter)
-        self.preview.setStyleSheet('background: #292e3b; border: 1px solid #40465b;')
+        self.preview.setStyleSheet('background: #11141c; border: 1px solid #353b4d; border-radius: 10px;')
         rl.addWidget(self.preview, alignment=Qt.AlignHCenter)
-        rl.addWidget(QLabel('Плоский предпросмотр • без сетки'))
-        self.button(rl, 'Импорт PNG', self.import_png)
-        self.button(rl, 'Экспорт PNG', self.export_png)
-        self.button(rl, 'Убрать из пака', self.remove_texture)
-        note = QLabel('Начните с чистого холста или импортируйте свою PNG.\n\nНажмите «Загрузить оригиналы» или выберите клиентский JAR Minecraft.\n\nРазмеры: 16×16, 32×32, 64×64. Анимации пока не поддерживаются.')
-        note.setWordWrap(True)
-        rl.addWidget(note)
+        self.preview_size = QLabel('16 × 16 px • PNG / RGBA')
+        self.preview_size.setObjectName('muted')
+        rl.addWidget(self.preview_size, alignment=Qt.AlignHCenter)
+        self.button(rl, 'Импорт PNG…', self.import_png)
+        self.button(rl, 'Сохранить текстуру PNG…', self.export_png)
         rl.addStretch()
+        note = QLabel('В пак попадут только ваши изменения. Остальные текстуры останутся стандартными.')
+        note.setWordWrap(True)
+        note.setObjectName('muted')
+        rl.addWidget(note)
+        self.button(rl, 'Убрать замену из пака', self.remove_texture).setObjectName('danger')
         splitter.addWidget(right)
-        splitter.setSizes([245, 650, 245])
+        splitter.setSizes([285, 650, 245])
         self.canvas.changed.connect(self.edited)
         self.canvas.sampled.connect(self.set_color)
         self.set_color(self.canvas.color)
@@ -325,6 +382,7 @@ class Window(QMainWindow):
         self.canvas.history.clear()
         self.canvas.future.clear()
         self.texture_title.setText(next(label for key, label, _ in self.catalog if key == self.current))
+        self.texture_id.setText(self.current)
         self.canvas.update()
         self.update_preview()
 
@@ -344,10 +402,12 @@ class Window(QMainWindow):
 
     def update_preview(self):
         from PySide6.QtGui import QPixmap
+        self.preview_size.setText(f'{self.canvas.data["size"]} × {self.canvas.data["size"]} px • PNG / RGBA')
         self.preview.setPixmap(QPixmap.fromImage(self.image()).scaled(176, 176, Qt.KeepAspectRatio, Qt.FastTransformation))
 
     def set_color(self, color):
         self.canvas.color = list(color)
+        self.color_value.setText(f'{QColor(*color).name().upper()}  •  α {color[3]}')
         self.swatch.setStyleSheet(f'background: {QColor(*color).name()}; color: {"#111111" if QColor(*color).lightness() > 140 else "#ffffff"};')
 
     def choose_color(self):
@@ -528,7 +588,7 @@ class Window(QMainWindow):
         self.select(self.list.currentItem())
         self.badges()
         self.filter()
-        self.source_label.setText(f'Оригиналы {self.project.version}: {len(self.source.entries)} текстур; пропущено {self.source.skipped}' if self.source else 'Оригиналы не подключены — чистый холст')
+        self.source_label.setText(f'Java {self.project.version} • {len(self.source.entries)} текстур\nПропущено: {self.source.skipped}' if self.source else 'Оригиналы не подключены — чистый холст')
 
     def attach_source(self, path):
         try:
@@ -539,12 +599,24 @@ class Window(QMainWindow):
             self.error(error)
 
     def try_cached_source(self):
-        path = self.cache / f'{self.project.version}.jar'
+        path = self.cache / f'{self.project.version}-selected.jar'
+        if not path.exists():
+            path = self.cache / f'{self.project.version}.jar'
         if path.exists():
             try:
                 self.source = TextureSource(path, self.project.version)
             except (OSError, ValueError, BadZipFile, KeyError):
                 self.source = None
+
+    def choose_online(self):
+        if self.worker and self.worker.isRunning():
+            self.error('Дождитесь завершения загрузки клиента.')
+            return
+        from .online_dialog import TextureDialog
+        dialog = TextureDialog(self.project.version, self.cache, self)
+        if dialog.exec() and dialog.path:
+            self.attach_source(dialog.path)
+            self.statusBar().showMessage('Выбранные оригиналы готовы. Выберите текстуру и рисуйте.')
 
     def open_jar(self):
         path, _ = QFileDialog.getOpenFileName(self, f'Клиент Minecraft Java {self.project.version}', str(Path.home()/ 'AppData/Roaming/.minecraft/versions'), 'Minecraft client (*.jar)')
@@ -591,19 +663,10 @@ def main():
     app.setApplicationName('Matronix')
     app.setOrganizationName('Matronix')
     app.setStyle('Fusion')
-    app.setStyleSheet('''
-        QWidget { background: #141720; color: #dfe3f3; font-family: "Segoe UI", sans-serif; font-size: 13px; }
-        QLineEdit, QComboBox, QListWidget { background: #1d2230; border: 1px solid #30374b; border-radius: 7px; padding: 9px; }
-        QPushButton { background: #272d3f; border: 1px solid #39425b; border-radius: 7px; padding: 9px 12px; }
-        QPushButton:hover { background: #353e58; }
-        QPushButton:checked, QPushButton#primary { background: #7155dc; border-color: #9a81f3; color: white; }
-        QListWidget::item { padding: 10px 4px; border-radius: 5px; }
-        QListWidget::item:selected { background: #423364; }
-        QLabel#brand { font-size: 18px; font-weight: 700; }
-        QLabel#heading { font-size: 22px; font-weight: 600; }
-        QSplitter::handle { background: #252b3c; width: 1px; }
-        QStatusBar { color: #a7b0c8; }
-    ''')
+    from .theme import STYLE
+    app.setStyleSheet(STYLE)
+    icon = Path(__file__).with_name('icon.png')
+    app.setWindowIcon(QIcon(str(icon)))
     window = Window()
     window.show()
     sys.exit(app.exec())
